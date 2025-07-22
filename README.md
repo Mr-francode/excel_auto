@@ -13,6 +13,8 @@ This tool provides a command-line interface to perform the following actions on 
 *   **`sort`**: Sort rows based on one or more columns.
 *   **`rename`**: Rename one or more columns.
 *   **`drop_duplicates`**: Remove duplicate rows.
+*   **`duplicate_sheet`**: Copy a sheet within the same workbook.
+*   **`update_cells`**: Change the value of one or more specific cells.
 
 ## Usage
 
@@ -80,4 +82,20 @@ Removes rows with duplicate values in the specified columns (or all columns if n
 
 ```bash
 python3 main.py drop_duplicates -i sample_data.xlsx -o unique_data.xlsx --subset Department
+```
+
+**8. `duplicate_sheet`**
+
+Copies an existing sheet to a new sheet within the same workbook.
+
+```bash
+python3 main.py duplicate_sheet -i sample_data.xlsx -o duplicated.xlsx --source-sheet Employees --new-sheet-name "Employees (Copy)"
+```
+
+**9. `update_cells`**
+
+Updates the value of one or more cells in a specific sheet. The updates are provided as a comma-separated string of `Cell:Value` pairs.
+
+```bash
+python3 main.py update_cells -i sample_data.xlsx -o updated.xlsx --sheet-name Employees --updates "A1:Report Title,B1:Status: Final"
 ```

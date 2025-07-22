@@ -1,5 +1,6 @@
 import argparse
 import pandas as pd
+import openpyxl
 
 # --- Action Functions ---
 
@@ -31,6 +32,20 @@ def rename_columns_data(df, rename_map):
 def drop_duplicates_data(df, subset=None):
     """Drops duplicate rows."""
     return df.drop_duplicates(subset=subset)
+
+def duplicate_sheet_data(workbook, source_sheet_name, new_sheet_name):
+    """Duplicates a sheet in the workbook."""
+    source_sheet = workbook[source_sheet_name]
+    new_sheet = workbook.copy_worksheet(source_sheet)
+    new_sheet.title = new_sheet_name
+    return workbook
+
+def update_cells_data(workbook, sheet_name, cell_updates):
+    """Updates one or more cells in a specific sheet."""
+    sheet = workbook[sheet_name]
+    for cell, value in cell_updates.items():
+        sheet[cell] = value
+    return workbook
 
 # --- Main Application ---
 
@@ -90,33 +105,60 @@ def main():
     parser_drop.add_argument('-o', '--output', required=True, help='Output Excel file')
     parser_drop.add_argument('--subset', nargs='+', help='Column(s) to consider for identifying duplicates')
 
+    # --- Duplicate Sheet Action Parser ---
+    parser_duplicate = subparsers.add_parser('duplicate_sheet', help='Duplicate a sheet in an Excel file')
+    parser_duplicate.add_argument('-i', '--input', required=True, help='Input Excel file')
+    parser_duplicate.add_argument('-o', '--output', required=True, help='Output Excel file')
+    parser_duplicate.add_argument('--source-sheet', required=True, help='Name of the sheet to duplicate')
+    parser_duplicate.add_argument('--new-sheet-name', required=True, help='Name for the new duplicated sheet')
+
+    # --- Update Cells Action Parser ---
+    parser_update = subparsers.add_parser('update_cells', help='Update one or more cells in a sheet')
+    parser_update.add_argument('-i', '--input', required=True, help='Input Excel file')
+    parser_update.add_argument('-o', '--output', required=True, help='Output Excel file')
+    parser_update.add_argument('--sheet-name', required=True, help='Name of the sheet to update')
+    parser_update.add_argument('--updates', required=True, help='Cell updates in the format "A1:NewValue,B2:AnotherValue"')
+
     args = parser.parse_args()
 
     # --- Action Dispatch ---
     try:
-        if args.action != 'merge':
-            df = pd.read_excel(args.input)
+        # Actions that modify the workbook directly with openpyxl
+        if args.action in ['duplicate_sheet', 'update_cells']:
+            workbook = openpyxl.load_workbook(args.input)
+            if args.action == 'duplicate_sheet':
+                workbook = duplicate_sheet_data(workbook, args.source_sheet, args.new_sheet_name)
+            elif args.action == 'update_cells':
+                cell_updates = dict(item.split(':', 1) for item in args.updates.split(','))
+                workbook = update_cells_data(workbook, args.sheet_name, cell_updates)
+            workbook.save(args.output)
+
+        # Actions that process data with pandas
         else:
-            df1 = pd.read_excel(args.input1)
-            df2 = pd.read_excel(args.input2)
+            if args.action == 'merge':
+                df1 = pd.read_excel(args.input1)
+                df2 = pd.read_excel(args.input2)
+            else:
+                df = pd.read_excel(args.input)
 
-        if args.action == 'filter':
-            result_df = filter_data(df, args.column, args.value)
-        elif args.action == 'summarize':
-            result_df = summarize_data(df, args.group_by, args.agg_col, args.agg_func)
-        elif args.action == 'calculate':
-            result_df = calculate_column(df, args.new_col, args.expr)
-        elif args.action == 'merge':
-            result_df = merge_data(df1, df2, args.on, args.how)
-        elif args.action == 'sort':
-            result_df = sort_data(df, args.by, ascending=(args.order == 'asc'))
-        elif args.action == 'rename':
-            rename_map = dict(item.split(':') for item in args.map.split(','))
-            result_df = rename_columns_data(df, rename_map)
-        elif args.action == 'drop_duplicates':
-            result_df = drop_duplicates_data(df, subset=args.subset)
+            if args.action == 'filter':
+                result_df = filter_data(df, args.column, args.value)
+            elif args.action == 'summarize':
+                result_df = summarize_data(df, args.group_by, args.agg_col, args.agg_func)
+            elif args.action == 'calculate':
+                result_df = calculate_column(df, args.new_col, args.expr)
+            elif args.action == 'merge':
+                result_df = merge_data(df1, df2, args.on, args.how)
+            elif args.action == 'sort':
+                result_df = sort_data(df, args.by, ascending=(args.order == 'asc'))
+            elif args.action == 'rename':
+                rename_map = dict(item.split(':') for item in args.map.split(','))
+                result_df = rename_columns_data(df, rename_map)
+            elif args.action == 'drop_duplicates':
+                result_df = drop_duplicates_data(df, subset=args.subset)
+            
+            result_df.to_excel(args.output, index=False)
 
-        result_df.to_excel(args.output, index=False)
         print(f"Action '{args.action}' completed successfully. Output saved to {args.output}")
 
     except Exception as e:
