@@ -15,6 +15,7 @@ This tool provides a command-line interface to perform the following actions on 
 *   **`drop_duplicates`**: Remove duplicate rows.
 *   **`duplicate_sheet`**: Copy a sheet within the same workbook.
 *   **`update_cells`**: Change the value of one or more specific cells.
+*   **`data_validation`**: Perform data cleaning and validation operations.
 
 ## Usage
 
@@ -98,6 +99,24 @@ Updates the value of one or more cells in a specific sheet. The updates are prov
 
 ```bash
 python3 main.py update_cells -i sample_data.xlsx -o updated.xlsx --sheet-name Employees --updates "A1:Report Title,B1:Status: Final"
+```
+
+**10. `data_validation`**
+
+Performs data cleaning and validation operations.
+
+*   **`fill_na`**: Fills missing values in specified columns.
+*   **`convert_type`**: Converts the data type of a column.
+
+```bash
+# Fill missing values in all columns
+python3 main.py data_validation -i sample_data.xlsx -o filled_na.xlsx fill_na --value "N/A"
+
+# Fill missing values in a specific column
+python3 main.py data_validation -i sample_data.xlsx -o filled_na_specific.xlsx fill_na --value "Unknown" --columns Department
+
+# Convert a column to a specific data type
+python3 main.py data_validation -i sample_data.xlsx -o converted_type.xlsx convert_type --column Salary --to-type int
 ```
 
 ## Running Tests
