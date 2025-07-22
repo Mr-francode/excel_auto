@@ -99,3 +99,12 @@ Updates the value of one or more cells in a specific sheet. The updates are prov
 ```bash
 python3 main.py update_cells -i sample_data.xlsx -o updated.xlsx --sheet-name Employees --updates "A1:Report Title,B1:Status: Final"
 ```
+
+## Running Tests
+
+To run the test suite, ensure you have activated the virtual environment and then execute `pytest` from the project root:
+
+```bash
+source venv/bin/activate
+pytest tests/
+```
