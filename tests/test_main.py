@@ -3,6 +3,7 @@ import pandas as pd
 import subprocess
 import openpyxl
 import shlex
+import numpy as np
 
 # Define file paths
 INPUT_FILE = "test_input.xlsx"
@@ -11,11 +12,12 @@ OUTPUT_FILE = "test_output.xlsx"
 
 def setup_module(module):
     """Set up dummy Excel files for testing."""
-    # Main input file
-    data = {'Name': ['Alice', 'Bob', 'Charlie', 'David', 'Eva'],
-            'Department': ['Sales', 'Marketing', 'Engineering', 'Sales', 'Engineering'],
-            'Salary': [70000, 65000, 90000, 72000, 95000]}
-    df = pd.DataFrame(data)
+    # Main input file for general tests and data_validation
+    data = {'Name': ['Alice', 'Bob', 'Charlie', 'David', 'Eva', 'Frank'],
+            'Department': ['Sales', 'Marketing', 'Engineering', 'Sales', 'Engineering', np.nan],
+            'Salary': [70000, 65000, 90000, 72000, 95000, 80000],
+            'Rating': [5, 4, 5, 3, 4, np.nan]}
+    df = pd.DataFrame(data, dtype=object) # Create DataFrame with object dtype to prevent premature type inference
     df.to_excel(INPUT_FILE, index=False, sheet_name='Employees')
 
     # Second input file for merge action
@@ -30,20 +32,24 @@ def teardown_module(module):
                        "renamed_output.xlsx", "deduplicated_output.xlsx", "duplicated_sheet_output.xlsx",
                        "updated_cells_output.xlsx", "summarized_output.xlsx", "calculated_output.xlsx",
                        "sample_data.xlsx", "sales_report.xlsx", "department_salaries.xlsx", "bonus_data.xlsx",
-                       "sample_data_with_copy.xlsx", "final_output.xlsx"]
+                       "sample_data_with_copy.xlsx", "final_output.xlsx",
+                       "filled_na_output.xlsx", "converted_type_output.xlsx"]
     for f in files_to_remove:
         if os.path.exists(f):
             os.remove(f)
 
-def run_cli_command(action, input_file, output_file, **kwargs):
+def run_cli_command(action, input_file, output_file, sub_action=None, **kwargs):
     """Helper function to run the main.py script."""
     command = ["python3", "main.py", action]
     
-    # Handle input/output files based on action type
+    # Place -i and -o arguments right after the main action, before any sub_action
     if action == 'merge':
         command.extend(["--input1", shlex.quote(input_file), "--input2", shlex.quote(kwargs.pop('input2')), "-o", shlex.quote(output_file)])
     else:
         command.extend(["-i", shlex.quote(input_file), "-o", shlex.quote(output_file)])
+
+    if sub_action:
+        command.append(sub_action)
 
     for key, value in kwargs.items():
         # Special handling for list arguments like --by or --subset
@@ -74,7 +80,7 @@ def test_filter_action():
     assert len(df_output) == 2
     assert "Alice" in df_output['Name'].values
     assert "David" in df_output['Name'].values
-    assert "Charlie" not in df_output['Name'].values # Charlie is Engineering in test data
+    assert "Charlie" not in df_output['Name'].values
 
 def test_summarize_action():
     """Test the summarize action."""
@@ -124,7 +130,7 @@ def test_merge_action():
 
     df_output = pd.read_excel("merged_output.xlsx")
     assert 'Location' in df_output.columns
-    assert len(df_output) == 5 # All employees should have a location
+    assert len(df_output) == 5
 
 def test_sort_action():
     """Test the sort action."""
@@ -139,8 +145,8 @@ def test_sort_action():
     assert "Action 'sort' completed successfully" in result.stdout
 
     df_output = pd.read_excel("sorted_output.xlsx")
-    assert df_output['Salary'].iloc[0] == 95000 # Eva
-    assert df_output['Salary'].iloc[-1] == 65000 # Bob
+    assert df_output['Salary'].iloc[0] == 95000
+    assert df_output['Salary'].iloc[-1] == 65000
 
 def test_rename_action():
     """Test the rename action."""
@@ -171,7 +177,7 @@ def test_drop_duplicates_action():
     assert "Action 'drop_duplicates' completed successfully" in result.stdout
 
     df_output = pd.read_excel("deduplicated_output.xlsx")
-    assert len(df_output) == 3 # Sales, Marketing, Engineering
+    assert len(df_output) == 4 # Sales, Marketing, Engineering, None
 
 def test_duplicate_sheet_action():
     """Test the duplicate_sheet action."""
@@ -205,3 +211,56 @@ def test_update_cells_action():
     sheet = workbook['Employees']
     assert sheet['A1'].value == 'NewHeaderA'
     assert sheet['B1'].value == 'NewHeaderB'
+
+def test_data_validation_fill_na_all_columns():
+    """Test data_validation fill_na for all columns."""
+    result = run_cli_command(
+        "data_validation",
+        INPUT_FILE,
+        "filled_na_output.xlsx",
+        sub_action="fill_na",
+        value="NIL"
+    )
+    assert result.returncode == 0
+    assert "Action 'data_validation' completed successfully" in result.stdout
+
+    df_output = pd.read_excel("filled_na_output.xlsx", dtype={'Department': str})
+    assert df_output['Department'].iloc[5] == 'NIL'
+
+def test_data_validation_fill_na_specific_column():
+    """Test data_validation fill_na for a specific column."""
+    result = run_cli_command(
+        "data_validation",
+        INPUT_FILE,
+        "filled_na_specific_output.xlsx",
+        sub_action="fill_na",
+        value="Unknown",
+        columns=["Department"]
+    )
+    assert result.returncode == 0
+    assert "Action 'data_validation' completed successfully" in result.stdout
+
+    df_output = pd.read_excel("filled_na_specific_output.xlsx")
+    assert df_output['Department'].iloc[5] == 'Unknown'
+
+def test_data_validation_convert_type():
+    """Test data_validation convert_type action."""
+    result = run_cli_command(
+        "data_validation",
+        INPUT_FILE,
+        "converted_type_output.xlsx",
+        sub_action="convert_type",
+        column="Rating",
+        to_type="int"
+    )
+    assert result.returncode == 0
+    assert "Action 'data_validation' completed successfully" in result.stdout
+
+    df_output = pd.read_excel("converted_type_output.xlsx")
+    # After reading from Excel, pandas will use float64 for columns with missing values (NaN)
+    # even if they were Int64 before writing. This is expected behavior.
+    assert str(df_output['Rating'].dtype) == 'float64'
+    assert pd.isna(df_output['Rating'].iloc[5]) # Check if the missing value is still missing
+    # Check if non-missing values are correct
+    assert df_output['Rating'].iloc[0] == 5.0
+    assert df_output['Rating'].iloc[1] == 4.0

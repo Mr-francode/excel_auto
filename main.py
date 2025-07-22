@@ -47,6 +47,30 @@ def update_cells_data(workbook, sheet_name, cell_updates):
         sheet[cell] = value
     return workbook
 
+def fill_missing_values(df, columns, value):
+    """Fills missing values in specified columns."""
+    if columns:
+        for col in columns:
+            df.loc[:, col] = df[col].fillna(value)
+    else:
+        df = df.fillna(value)
+    return df
+
+def convert_column_type(df, column, data_type):
+    """Converts the data type of a column."""
+    if data_type == 'int':
+        # Convert to numeric first, then to nullable integer type
+        df[column] = pd.to_numeric(df[column], errors='coerce').astype('Int64')
+    elif data_type == 'float':
+        df[column] = pd.to_numeric(df[column], errors='coerce')
+    elif data_type == 'str':
+        df[column] = df[column].astype(str)
+    elif data_type == 'datetime':
+        df[column] = pd.to_datetime(df[column], errors='coerce')
+    else:
+        raise ValueError(f"Unsupported data type for conversion: {data_type}")
+    return df
+
 # --- Main Application ---
 
 def main():
@@ -119,6 +143,23 @@ def main():
     parser_update.add_argument('--sheet-name', required=True, help='Name of the sheet to update')
     parser_update.add_argument('--updates', required=True, help='Cell updates in the format "A1:NewValue,B2:AnotherValue"')
 
+    # --- Data Validation Action Parser ---
+    parser_data_validation = subparsers.add_parser('data_validation', help='Perform data cleaning and validation operations')
+    parser_data_validation.add_argument('-i', '--input', required=True, help='Input Excel file')
+    parser_data_validation.add_argument('-o', '--output', required=True, help='Output Excel file')
+    
+    data_validation_subparsers = parser_data_validation.add_subparsers(dest='validation_action', required=True, help='Data validation operation')
+
+    # Fill NA sub-action
+    parser_fill_na = data_validation_subparsers.add_parser('fill_na', help='Fill missing values')
+    parser_fill_na.add_argument('--value', required=True, help='Value to fill missing entries with')
+    parser_fill_na.add_argument('--columns', nargs='+', help='Columns to fill NA values in (default: all columns)')
+
+    # Convert Type sub-action
+    parser_convert_type = data_validation_subparsers.add_parser('convert_type', help='Convert column data type')
+    parser_convert_type.add_argument('--column', required=True, help='Column to convert')
+    parser_convert_type.add_argument('--to-type', required=True, choices=['int', 'float', 'str', 'datetime'], help='Target data type')
+
     args = parser.parse_args()
 
     # --- Action Dispatch ---
@@ -138,24 +179,29 @@ def main():
             if args.action == 'merge':
                 df1 = pd.read_excel(args.input1)
                 df2 = pd.read_excel(args.input2)
-            else:
-                df = pd.read_excel(args.input)
-
-            if args.action == 'filter':
-                result_df = filter_data(df, args.column, args.value)
-            elif args.action == 'summarize':
-                result_df = summarize_data(df, args.group_by, args.agg_col, args.agg_func)
-            elif args.action == 'calculate':
-                result_df = calculate_column(df, args.new_col, args.expr)
-            elif args.action == 'merge':
                 result_df = merge_data(df1, df2, args.on, args.how)
-            elif args.action == 'sort':
-                result_df = sort_data(df, args.by, ascending=(args.order == 'asc'))
-            elif args.action == 'rename':
-                rename_map = dict(item.split(':') for item in args.map.split(','))
-                result_df = rename_columns_data(df, rename_map)
-            elif args.action == 'drop_duplicates':
-                result_df = drop_duplicates_data(df, subset=args.subset)
+            else: # For all other pandas-based actions
+                df = pd.read_excel(args.input) # Read input for these actions
+                if args.action == 'filter':
+                    result_df = filter_data(df, args.column, args.value)
+                elif args.action == 'summarize':
+                    result_df = summarize_data(df, args.group_by, args.agg_col, args.agg_func)
+                elif args.action == 'calculate':
+                    result_df = calculate_column(df, args.new_col, args.expr)
+                elif args.action == 'sort':
+                    result_df = sort_data(df, args.by, ascending=(args.order == 'asc'))
+                elif args.action == 'rename':
+                    rename_map = dict(item.split(':') for item in args.map.split(','))
+                    result_df = rename_columns_data(df, rename_map)
+                elif args.action == 'drop_duplicates':
+                    result_df = drop_duplicates_data(df, subset=args.subset)
+                elif args.action == 'data_validation':
+                    if args.validation_action == 'fill_na':
+                        result_df = fill_missing_values(df, args.columns, args.value)
+                    elif args.validation_action == 'convert_type':
+                        result_df = convert_column_type(df, args.column, args.to_type)
+                    else:
+                        result_df = df # Should not happen due to required=True on subparsers
             
             result_df.to_excel(args.output, index=False)
 
