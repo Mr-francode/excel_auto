@@ -16,6 +16,7 @@ This tool provides a command-line interface to perform the following actions on 
 *   **`duplicate_sheet`**: Copy a sheet within the same workbook.
 *   **`update_cells`**: Change the value of one or more specific cells.
 *   **`data_validation`**: Perform data cleaning and validation operations.
+*   **`chart`**: Create a chart from data.
 
 ## Usage
 
@@ -117,6 +118,14 @@ python3 main.py data_validation -i sample_data.xlsx -o filled_na_specific.xlsx f
 
 # Convert a column to a specific data type
 python3 main.py data_validation -i sample_data.xlsx -o converted_type.xlsx convert_type --column Salary --to-type int
+```
+
+**11. `chart`**
+
+Creates a chart from data in a specified sheet and saves it to a new sheet.
+
+```bash
+python3 main.py chart -i sample_data.xlsx -o chart.xlsx --sheet-name Employees --chart-type bar --x-column Department --y-columns Salary --title "Department Salaries"
 ```
 
 ## Running Tests

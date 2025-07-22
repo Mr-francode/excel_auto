@@ -71,6 +71,42 @@ def convert_column_type(df, column, data_type):
         raise ValueError(f"Unsupported data type for conversion: {data_type}")
     return df
 
+def create_chart(workbook, sheet_name, chart_type, x_column, y_columns, title, chart_title):
+    """Creates a chart and adds it to a new sheet."""
+    source_sheet = workbook[sheet_name]
+    chart_sheet = workbook.create_sheet(title=chart_title)
+
+    if chart_type == 'bar':
+        chart = openpyxl.chart.BarChart()
+    elif chart_type == 'line':
+        chart = openpyxl.chart.LineChart()
+    elif chart_type == 'pie':
+        chart = openpyxl.chart.PieChart()
+
+    data_cols = []
+    for col in y_columns:
+        for i, column_cell in enumerate(source_sheet.iter_cols(min_row=1, max_row=1)):
+            if column_cell[0].value == col:
+                data_cols.append(i + 1)
+                break
+
+    cat_col = 0
+    for i, column_cell in enumerate(source_sheet.iter_cols(min_row=1, max_row=1)):
+        if column_cell[0].value == x_column:
+            cat_col = i + 1
+            break
+
+    data = openpyxl.chart.Reference(source_sheet, min_col=data_cols[0], min_row=2, max_row=source_sheet.max_row, max_col=data_cols[-1])
+    cats = openpyxl.chart.Reference(source_sheet, min_col=cat_col, min_row=2, max_row=source_sheet.max_row)
+
+    chart.add_data(data, titles_from_data=True)
+    chart.set_categories(cats)
+    chart.title = title
+
+    chart_sheet.add_chart(chart, "A1")
+
+    return workbook
+
 # --- Main Application ---
 
 def main():
@@ -160,18 +196,32 @@ def main():
     parser_convert_type.add_argument('--column', required=True, help='Column to convert')
     parser_convert_type.add_argument('--to-type', required=True, choices=['int', 'float', 'str', 'datetime'], help='Target data type')
 
+    # --- Chart Action Parser ---
+    parser_chart = subparsers.add_parser('chart', help='Create a chart from data')
+    parser_chart.add_argument('-i', '--input', required=True, help='Input Excel file')
+    parser_chart.add_argument('-o', '--output', required=True, help='Output Excel file')
+    parser_chart.add_argument('--sheet-name', required=True, help='Sheet to draw chart from')
+    parser_chart.add_argument('--chart-type', required=True, choices=['bar', 'line', 'pie'], help='Type of chart to create')
+    parser_chart.add_argument('--x-column', required=True, help='Column for the X-axis (categories)')
+    parser_chart.add_argument('--y-columns', required=True, nargs='+', help='Column(s) for the Y-axis (values)')
+    parser_chart.add_argument('--title', default='Chart', help='Title of the chart')
+    parser_chart.add_argument('--chart-title', default='Chart Sheet', help='Name of the new sheet for the chart')
+
+
     args = parser.parse_args()
 
     # --- Action Dispatch ---
     try:
         # Actions that modify the workbook directly with openpyxl
-        if args.action in ['duplicate_sheet', 'update_cells']:
+        if args.action in ['duplicate_sheet', 'update_cells', 'chart']:
             workbook = openpyxl.load_workbook(args.input)
             if args.action == 'duplicate_sheet':
                 workbook = duplicate_sheet_data(workbook, args.source_sheet, args.new_sheet_name)
             elif args.action == 'update_cells':
                 cell_updates = dict(item.split(':', 1) for item in args.updates.split(','))
                 workbook = update_cells_data(workbook, args.sheet_name, cell_updates)
+            elif args.action == 'chart':
+                workbook = create_chart(workbook, args.sheet_name, args.chart_type, args.x_column, args.y_columns, args.title, args.chart_title)
             workbook.save(args.output)
 
         # Actions that process data with pandas

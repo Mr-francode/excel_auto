@@ -264,3 +264,25 @@ def test_data_validation_convert_type():
     # Check if non-missing values are correct
     assert df_output['Rating'].iloc[0] == 5.0
     assert df_output['Rating'].iloc[1] == 4.0
+
+def test_chart_action():
+    """Test the chart action."""
+    result = run_cli_command(
+        "chart",
+        INPUT_FILE,
+        "chart_output.xlsx",
+        sheet_name="Employees",
+        chart_type="bar",
+        x_column="Department",
+        y_columns=["Salary"],
+        title="Department Salaries",
+        chart_title="Salary Chart"
+    )
+    assert result.returncode == 0
+    assert "Action 'chart' completed successfully" in result.stdout
+
+    workbook = openpyxl.load_workbook("chart_output.xlsx")
+    assert "Salary Chart" in workbook.sheetnames
+    sheet = workbook["Salary Chart"]
+    assert sheet._charts
+    assert sheet._charts[0].title.tx.rich.p[0].r[0].t == "Department Salaries"
